@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Migrate and merge memory data from npx cache to configured global path
+Migrate and merge memory data from multiple sources to configured global path
 
 This script:
-1. Finds memory data in npx cache directory
-2. Reads both source (npx) and target (global) files if they exist
-3. Intelligently merges entities and relations with deduplication
+1. Intelligently scans for memory files in all possible locations
+2. Validates each file to ensure it's a valid Memory MCP file
+3. Merges entities and relations from multiple sources with deduplication
 4. Backs up original files before merging
 5. Verifies the migration
 """
@@ -21,20 +21,93 @@ from difflib import SequenceMatcher
 MEMORY_DIR = Path.home() / ".claude" / "memory"
 TARGET_MEMORY_FILE = MEMORY_DIR / "global.jsonl"
 NPX_CACHE_DIR = Path.home() / ".npm" / "_npx"
+CLAUDE_DIR = Path.home() / ".claude"
 
 def similar(a, b, threshold=0.85):
     """Check if two strings are similar (for deduplication)"""
     return SequenceMatcher(None, a.lower(), b.lower()).ratio() > threshold
 
-def find_npx_memory_file():
-    """Find memory.jsonl in npx cache"""
-    matches = list(NPX_CACHE_DIR.glob("*/node_modules/@modelcontextprotocol/server-memory/dist/memory.jsonl"))
+def is_valid_memory_file(file_path):
+    """Check if a file is a valid Memory MCP JSONL file"""
+    if not file_path.exists() or file_path.stat().st_size == 0:
+        return False
 
-    if not matches:
-        return None
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines_checked = 0
+            valid_items = 0
 
-    # Return the most recently modified file
-    return max(matches, key=lambda p: p.stat().st_mtime)
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    item = json.loads(line)
+                    if item.get('type') in ['entity', 'relation']:
+                        valid_items += 1
+                except json.JSONDecodeError:
+                    pass
+
+                lines_checked += 1
+                if lines_checked >= 10:
+                    break
+
+            return valid_items > 0
+    except Exception:
+        return False
+
+def find_all_memory_files():
+    """Scan all possible locations for memory files"""
+    candidates = []
+    home = Path.home()
+
+    print("\n🔍 Scanning for memory files...")
+
+    print("   Checking npx cache...")
+    npx_files = list(NPX_CACHE_DIR.glob("*/node_modules/@modelcontextprotocol/server-memory/dist/memory.jsonl"))
+    for f in npx_files:
+        if is_valid_memory_file(f):
+            candidates.append(('npx cache', f))
+
+    print("   Checking .claude directories...")
+    claude_files = []
+    if CLAUDE_DIR.exists():
+        claude_files.extend(CLAUDE_DIR.glob("memory/**/*.jsonl"))
+        claude_files.extend(CLAUDE_DIR.glob("projects/*/memory/**/*.jsonl"))
+
+    for f in claude_files:
+        if f == TARGET_MEMORY_FILE:
+            continue
+        if is_valid_memory_file(f):
+            candidates.append(('.claude directory', f))
+
+    print("   Checking home directory...")
+    common_names = ['memory.jsonl', 'memories.jsonl', 'mcp-memory.jsonl']
+    for name in common_names:
+        f = home / name
+        if is_valid_memory_file(f):
+            candidates.append(('home directory', f))
+
+    print("   Checking workspace directories...")
+    workspace_dirs = [home / 'workspace', home / 'projects', home / 'code', home / 'dev']
+
+    for workspace in workspace_dirs:
+        if workspace.exists():
+            workspace_files = workspace.glob("*/.claude/memory/**/*.jsonl")
+            for f in workspace_files:
+                if is_valid_memory_file(f):
+                    candidates.append((f'workspace: {workspace.name}', f))
+
+    print("   Checking /tmp directory...")
+    tmp = Path('/tmp')
+    if tmp.exists():
+        tmp_files = tmp.glob("**/memory*.jsonl")
+        for f in tmp_files:
+            if is_valid_memory_file(f):
+                candidates.append(('tmp directory', f))
+
+    return candidates
 
 def load_jsonl(file_path):
     """Load JSONL file into list of dictionaries"""
@@ -68,13 +141,11 @@ def deduplicate_observations(observations):
 
     unique = []
     for obs in observations:
-        # Check if this observation is already present or very similar
         is_duplicate = False
         for existing in unique:
             if obs == existing or similar(obs, existing):
                 is_duplicate = True
                 break
-
         if not is_duplicate:
             unique.append(obs)
 
@@ -82,36 +153,29 @@ def deduplicate_observations(observations):
 
 def merge_entities(old_entities, new_entities):
     """Merge entities from two sources with intelligent deduplication"""
-    # Index old entities by name
     entity_map = {}
     for entity in old_entities:
         name = entity.get('name')
         if name:
             entity_map[name] = entity.copy()
 
-    # Merge new entities
     for new_entity in new_entities:
         name = new_entity.get('name')
         if not name:
             continue
 
         if name in entity_map:
-            # Merge observations
             old_obs = entity_map[name].get('observations', [])
             new_obs = new_entity.get('observations', [])
-
-            # Combine and deduplicate
             combined = old_obs + new_obs
             entity_map[name]['observations'] = deduplicate_observations(combined)
         else:
-            # New entity, add it
             entity_map[name] = new_entity.copy()
 
     return list(entity_map.values())
 
 def merge_relations(old_relations, new_relations):
     """Merge relations with deduplication"""
-    # Relations are uniquely identified by (from, to, relationType)
     relation_set = set()
     merged = []
 
@@ -122,25 +186,6 @@ def merge_relations(old_relations, new_relations):
             merged.append(rel)
 
     return merged
-
-def analyze_data(data, label):
-    """Analyze and display statistics about memory data"""
-    entities = [item for item in data if item.get('type') == 'entity']
-    relations = [item for item in data if item.get('type') == 'relation']
-
-    total_observations = sum(len(e.get('observations', [])) for e in entities)
-
-    print(f"\n{label}:")
-    print(f"  Entities: {len(entities)}")
-    print(f"  Relations: {len(relations)}")
-    print(f"  Total observations: {total_observations}")
-
-    if entities:
-        print(f"  Entity names: {', '.join(e.get('name', '?') for e in entities[:5])}")
-        if len(entities) > 5:
-            print(f"    ... and {len(entities) - 5} more")
-
-    return entities, relations
 
 def backup_file(file_path):
     """Create a backup of the file with timestamp"""
@@ -157,91 +202,141 @@ def backup_file(file_path):
         print(f"⚠️  Failed to backup {file_path}: {e}")
         return None
 
+def select_sources_to_merge(candidates):
+    """Let user select which memory files to merge"""
+    if not candidates:
+        return []
+
+    print(f"\n📋 Found {len(candidates)} memory file(s):\n")
+
+    for i, (location, path) in enumerate(candidates, 1):
+        size = path.stat().st_size
+        mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime('%Y-%m-%d %H:%M')
+
+        print(f"  [{i}] {location}")
+        print(f"      Path: {path}")
+        print(f"      Size: {size} bytes")
+        print(f"      Modified: {mtime}")
+
+        data = load_jsonl(path)
+        if data:
+            entities = [item for item in data if item.get('type') == 'entity']
+            relations = [item for item in data if item.get('type') == 'relation']
+            total_obs = sum(len(e.get('observations', [])) for e in entities)
+            print(f"      Content: {len(entities)} entities, {len(relations)} relations, {total_obs} observations")
+        print()
+
+    print("💡 All files will be merged together with intelligent deduplication")
+    print("   Press Enter to continue, or type file numbers to select (e.g., 1,3,5)")
+    print("   Type 'q' to cancel")
+
+    try:
+        choice = input("\n> ").strip()
+
+        if choice.lower() == 'q':
+            return None
+
+        if not choice:
+            return candidates
+
+        selected = []
+        for num in choice.split(','):
+            try:
+                idx = int(num.strip()) - 1
+                if 0 <= idx < len(candidates):
+                    selected.append(candidates[idx])
+            except ValueError:
+                pass
+
+        return selected if selected else candidates
+
+    except (EOFError, KeyboardInterrupt):
+        return None
+
 def migrate_and_merge():
     """Main migration and merge logic"""
 
     print("🔄 Memory Data Migration & Merge")
     print("=" * 50)
 
-    # Find source file
-    source_file = find_npx_memory_file()
+    candidates = find_all_memory_files()
 
-    if not source_file:
-        print("\nℹ️  No memory data found in npx cache")
-        print("   Nothing to migrate")
+    if not candidates:
+        print("\n✅ No memory files found to migrate")
+        print("   Your system is clean!")
         return
 
-    print(f"\n📂 Source (npx cache): {source_file}")
-    print(f"   Size: {source_file.stat().st_size} bytes")
+    selected = select_sources_to_merge(candidates)
 
-    # Load source data
-    print("\n📖 Loading source data...")
-    source_data = load_jsonl(source_file)
-    if source_data is None:
-        print("❌ Failed to load source data")
+    if selected is None:
+        print("\n❌ Migration cancelled by user")
         return
 
-    source_entities, source_relations = analyze_data(source_data, "Source data")
+    if not selected:
+        print("\n⚠️  No files selected")
+        return
 
-    # Check target file
-    target_exists = TARGET_MEMORY_FILE.exists()
-    target_data = []
+    print(f"\n📦 Merging {len(selected)} file(s)...")
 
-    if target_exists:
-        print(f"\n📂 Target (global): {TARGET_MEMORY_FILE}")
-        print(f"   Size: {TARGET_MEMORY_FILE.stat().st_size} bytes")
+    all_entities = []
+    all_relations = []
 
-        print("\n📖 Loading target data...")
+    for location, source_file in selected:
+        print(f"\n📂 Loading: {location}")
+        print(f"   {source_file}")
+
+        source_data = load_jsonl(source_file)
+        if source_data is None:
+            print(f"   ⚠️  Skipped (failed to load)")
+            continue
+
+        entities = [item for item in source_data if item.get('type') == 'entity']
+        relations = [item for item in source_data if item.get('type') == 'relation']
+
+        print(f"   ✅ {len(entities)} entities, {len(relations)} relations")
+
+        all_entities.extend(entities)
+        all_relations.extend(relations)
+
+    if TARGET_MEMORY_FILE.exists():
+        print(f"\n📂 Existing target: {TARGET_MEMORY_FILE}")
+        print(f"   Will merge with existing data")
+
         target_data = load_jsonl(TARGET_MEMORY_FILE)
-        if target_data is None:
-            print("❌ Failed to load target data")
-            return
+        if target_data:
+            target_entities = [item for item in target_data if item.get('type') == 'entity']
+            target_relations = [item for item in target_data if item.get('type') == 'relation']
+            print(f"   ✅ {len(target_entities)} entities, {len(target_relations)} relations")
 
-        target_entities, target_relations = analyze_data(target_data, "Target data")
-    else:
-        print(f"\n📂 Target (global): {TARGET_MEMORY_FILE}")
-        print("   File does not exist, will create new")
-        target_entities = []
-        target_relations = []
-
-    # Decide merge strategy
-    if not target_exists or len(target_data) == 0:
-        print("\n✨ Strategy: Direct copy (target is empty)")
-        merged_data = source_data
-    else:
-        print("\n🔀 Strategy: Intelligent merge with deduplication")
-
-        # Backup target before merging
-        if target_exists:
             backup_path = backup_file(TARGET_MEMORY_FILE)
             if backup_path:
-                print(f"\n💾 Backup created: {backup_path}")
+                print(f"   💾 Backup: {backup_path}")
 
-        # Merge entities and relations
-        print("\n⚙️  Merging entities...")
-        merged_entities = merge_entities(source_entities, target_entities)
+            all_entities.extend(target_entities)
+            all_relations.extend(target_relations)
 
-        print("⚙️  Merging relations...")
-        merged_relations = merge_relations(source_relations, target_relations)
+    print(f"\n🔀 Merging {len(all_entities)} entities and {len(all_relations)} relations...")
 
-        # Combine into final data
-        merged_data = merged_entities + merged_relations
+    print("⚙️  Deduplicating entities...")
+    merged_entities = merge_entities(all_entities, [])
 
-        # Show merge results
-        total_obs = sum(len(e.get('observations', [])) for e in merged_entities)
-        print(f"\n📊 Merge results:")
-        print(f"  Entities: {len(merged_entities)} (was {len(source_entities)} + {len(target_entities)})")
-        print(f"  Relations: {len(merged_relations)} (was {len(source_relations)} + {len(target_relations)})")
-        print(f"  Total observations: {total_obs}")
+    print("⚙️  Deduplicating relations...")
+    merged_relations = merge_relations(all_relations, [])
 
-        # Show deduplication stats
-        source_obs = sum(len(e.get('observations', [])) for e in source_entities)
-        target_obs = sum(len(e.get('observations', [])) for e in target_entities)
-        deduped = (source_obs + target_obs) - total_obs
-        if deduped > 0:
-            print(f"  🗑️  Removed {deduped} duplicate observations")
+    total_obs = sum(len(e.get('observations', [])) for e in merged_entities)
+    original_obs = sum(len(e.get('observations', [])) for e in all_entities)
 
-    # Save merged data
+    print(f"\n📊 Merge results:")
+    print(f"  Entities: {len(merged_entities)} (from {len(all_entities)} total)")
+    print(f"  Relations: {len(merged_relations)} (from {len(all_relations)} total)")
+    print(f"  Observations: {total_obs}")
+
+    if original_obs > total_obs:
+        deduped = original_obs - total_obs
+        print(f"  🗑️  Removed {deduped} duplicate observations")
+
+    merged_data = merged_entities + merged_relations
+
     print(f"\n💾 Saving merged data to: {TARGET_MEMORY_FILE}")
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -249,7 +344,6 @@ def migrate_and_merge():
         print("❌ Failed to save merged data")
         return
 
-    # Verify
     final_size = TARGET_MEMORY_FILE.stat().st_size
     print(f"\n✅ Migration complete!")
     print(f"   Final size: {final_size} bytes")
