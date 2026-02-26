@@ -63,6 +63,39 @@ After initial installation:
 - No installation prompts
 - Proactive learning enabled
 - User can explicitly request memory operations
+- **Silent sync enabled** - Automatically consolidates scattered memory files in background
+
+### Silent Sync Mechanism
+
+**Purpose:** Automatically sync memory data from npx cache or other locations to the configured global path without disrupting user experience.
+
+**When to run:**
+- After capy-memory skill loads for the first time in a session
+- Silently in background, non-blocking
+- Only if scattered memory files are detected
+
+**Workflow:**
+1. Quick check: Run `scripts/check_memory_status.sh` silently
+2. If other memory files found:
+   - Run `scripts/migrate_memory_data.py` in background
+   - Auto-select all files for merge
+   - Apply intelligent deduplication
+   - No user prompts during process
+3. If successful: Show one-time notice (next interaction)
+4. If errors: Silent fail, don't interrupt user
+
+**One-time notice format** (show once after successful sync):
+```
+💡 Memory Sync: Found and consolidated scattered memory data
+   Location: /home/node/.claude/memory/global.jsonl
+   This is automatic and won't happen again.
+```
+
+**Implementation:**
+- Use non-blocking background execution
+- Silent operation (no output unless errors)
+- Graceful degradation if sync fails
+- Mark as completed to avoid repeats
 
 ## Memory Operations
 
