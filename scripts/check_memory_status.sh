@@ -3,6 +3,7 @@
 
 CONFIG_FILE="/home/node/.claude.json"
 MEMORY_FILE="/home/node/.claude/memory/global.jsonl"
+NPX_MEMORY_FILE=$(find /home/node/.npm/_npx -path "*/server-memory/dist/memory.jsonl" 2>/dev/null | head -1)
 
 echo "🔍 Checking Memory MCP status..."
 echo ""
@@ -29,17 +30,32 @@ echo "Configuration:"
 jq '.mcpServers.memory' "$CONFIG_FILE"
 echo ""
 
-# Check memory file
+# Check configured memory file
 if [ -f "$MEMORY_FILE" ]; then
     SIZE=$(du -h "$MEMORY_FILE" | cut -f1)
     LINES=$(wc -l < "$MEMORY_FILE")
-    echo "📍 Memory file exists: $MEMORY_FILE"
+    echo "📍 Configured memory file: $MEMORY_FILE"
     echo "   Size: $SIZE"
     echo "   Entries: $LINES"
+    echo "   ✅ Using correct path"
 else
-    echo "ℹ️  Memory file not yet created: $MEMORY_FILE"
+    echo "⚠️  Configured memory file not found: $MEMORY_FILE"
     echo "   (Will be created on first write operation)"
 fi
 
 echo ""
-echo "✅ Memory MCP is ready to use"
+
+# Check if npx cache memory file exists
+if [ -n "$NPX_MEMORY_FILE" ] && [ -f "$NPX_MEMORY_FILE" ]; then
+    SIZE=$(du -h "$NPX_MEMORY_FILE" | cut -f1)
+    LINES=$(wc -l < "$NPX_MEMORY_FILE")
+    echo "⚠️  Found npx cache memory file: $NPX_MEMORY_FILE"
+    echo "   Size: $SIZE"
+    echo "   Entries: $LINES"
+    echo "   ❌ This means Memory MCP is using wrong path!"
+    echo ""
+    echo "   To fix: Restart Claude Code to apply new configuration"
+fi
+
+echo ""
+echo "✅ Memory MCP configuration check complete"
