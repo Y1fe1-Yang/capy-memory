@@ -46,25 +46,155 @@ Structure:
 
 ### Step 4: Information Extraction
 
-**Extracted information types:**
+Based on Memory MCP official recommendations, extract information in the following categories:
+
+#### Entity Identification
+
+**Scan for recurring subjects that should become entities:**
+
+**1. Technologies (Technology entityType)**
+- Programming languages mentioned 3+ times
+- Frameworks used in projects
+- Tools consistently chosen
+- Platforms regularly accessed
+
+**Example extraction:**
+```
+Sessions show: TypeScript (15x), React (12x), pnpm (8x)
+→ Create entities: TypeScript, React, pnpm
+→ Add User relations: prefers, uses, expert_in
+```
+
+**2. Projects (Project entityType)**
+- Named projects or deliverables
+- Ongoing work mentioned multiple times
+- Completed implementations
+- Side projects or experiments
+
+**Example extraction:**
+```
+Sessions show: "Created capy-memory skill", "Working on mcp-manager"
+→ Create entities: capy-memory, happycapy-mcp-manager
+→ Add User relations: created, working_on
+→ Add Project observations: creation date, status, key decisions
+```
+
+**3. Concepts (Concept entityType)**
+- Design principles learned
+- Technical concepts mastered
+- Best practices followed
+- Domain knowledge acquired
+
+**Example extraction:**
+```
+Sessions show: Discussed skill-creator standards, progressive disclosure
+→ Create entities: skill-creator, Progressive Disclosure
+→ Add User relations: learned_about, understands, follows
+→ Add Concept observations: key principles, guidelines, rules
+```
+
+**4. Conversation Topics (ConversationTopic entityType)**
+- Major discussions spanning multiple turns
+- Problem-solving sessions
+- Design decisions
+- Learning sessions
+
+**Example extraction:**
+```
+Session 2026-02-26: Long discussion about auto-trigger mechanisms
+→ Create entity: Memory-Auto-Trigger-Discussion-2026-02-26
+→ Add observations: key points discussed, decisions made, outcomes
+→ Add relations: User participated_in, Topic about capy-memory
+```
+
+**5. Organizations (Organization entityType)**
+- Companies or teams mentioned
+- Open source projects contributed to
+- Communities participated in
+
+**Example extraction:**
+```
+Sessions show: HappyCapy, Anthropic, GitHub organizations
+→ Create entities for recurring ones
+→ Add User relations: works_with, contributes_to
+```
+
+#### Observation Extraction (User Entity)
+
+**From user profile, extract atomic observations:**
+
+**Basic Identity:**
+- Job title, experience level
+- Time zone, location
+- Languages spoken
+- Education background
+
+**Behaviors:**
+- Regular habits
+- Work patterns
+- Learning activities
+- Interests
 
 **Preferences:**
-- Language/framework choices
-- Tool preferences
-- Code style preferences
-- Workflow preferences
+- Communication style
+- Language preferences
+- Tool choices
+- Code style
 
-**Background:**
-- Experience level
-- Current learning
-- Domain expertise
-- Communication preferences
+**Goals:**
+- Current objectives
+- Learning targets
+- Project aspirations
 
-**Patterns:**
-- Repeated choices
-- Common workflows
-- Problem-solving approaches
-- Tool usage frequency
+**Example:**
+```
+User entity observations:
+- "Works in UTC+8 timezone"
+- "Prefers Chinese communication"
+- "Senior frontend engineer"
+- "5 years of React experience"
+- "Interested in AI automation"
+- "Learning Rust for systems programming"
+```
+
+#### Relation Extraction
+
+**Build connections between entities:**
+
+**User-Technology:**
+```
+User --prefers--> TypeScript
+User --uses--> pnpm
+User --learning--> Rust
+User --expert_in--> React
+```
+
+**User-Project:**
+```
+User --created--> capy-memory
+User --working_on--> mcp-manager
+User --completed--> desktop-pet
+```
+
+**User-Concept:**
+```
+User --learned_about--> skill-creator
+User --understands--> Progressive Disclosure
+User --follows--> Git Conventional Commits
+```
+
+**Project-Technology:**
+```
+capy-memory --uses--> Memory MCP
+capy-memory --built_with--> TypeScript
+mcp-manager --requires--> Node.js v20
+```
+
+**Topic-Project:**
+```
+Memory-Auto-Trigger-Discussion --about--> capy-memory
+Skill-Creator-Compliance --resulted_in--> Updated SKILL.md
+```
 
 ### Step 5: Conflict Resolution
 
