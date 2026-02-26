@@ -118,6 +118,16 @@ capy-memory automatically filters:
 scripts/check_memory_status.sh
 ```
 
+### Migrate Memory Data
+
+If Memory MCP was using npx cache directory instead of the configured global path:
+
+```bash
+scripts/migrate_memory_data.py
+```
+
+This will copy data from npx cache to `/home/node/.claude/memory/global.jsonl` and warn you to restart Claude Code.
+
 ### Manual Backup
 
 ```bash
