@@ -97,34 +97,102 @@ After initial installation:
 
 ### Proactive Learning
 
-Claude automatically identifies when to remember information:
+Claude automatically identifies when to create entities, add observations, and build relations.
 
-**Preference Statements:**
-- "I prefer TypeScript over JavaScript"
-- "I always use pnpm"
-- "I like concise code"
+#### Entity Creation
 
-**Background Information:**
-- "I'm a senior frontend engineer"
-- "I work in UTC+8 timezone"
-- "I'm currently learning Rust"
+**Identify recurring subjects for entity creation:**
 
-**Repeated Patterns:**
-- Consistently choosing same tools
-- Regular workflow patterns
-- Common problem-solving approaches
+**Technologies (when mentioned 3+ times):**
+```
+User: "I'll use TypeScript for this"
+User: "Let's write it in TypeScript"
+User: "TypeScript is my preferred language"
+→ Create Technology entity: TypeScript
+→ Add relation: User --prefers--> TypeScript
+→ Add User observation: "Expert in TypeScript"
+```
+
+**Projects (new work or deliverables):**
+```
+User: "Let's create a memory management skill"
+→ Create Project entity: capy-memory
+→ Add relation: User --created--> capy-memory
+→ Add Project observations: purpose, creation date, status
+```
+
+**Concepts (learned principles or knowledge):**
+```
+User: "I learned that skills shouldn't include README.md"
+→ Create/update Concept entity: skill-creator
+→ Add relation: User --learned_about--> skill-creator
+→ Add Concept observation: "README.md violates guidelines"
+```
+
+**Conversation Topics (significant discussions):**
+```
+Major discussion about auto-trigger mechanisms spanning 10+ turns
+→ Create ConversationTopic entity: Memory-Auto-Trigger-Discussion-2026-02-26
+→ Add relation: User --participated_in--> Topic
+→ Add relation: Topic --about--> capy-memory
+→ Add Topic observations: key points, decisions, outcomes
+```
+
+#### Observation Addition
+
+**User entity - atomic facts:**
+
+**Basic Identity:**
+- "Works in UTC+8 timezone"
+- "Senior frontend engineer"
+- "Speaks Chinese and English"
+
+**Behaviors:**
+- "Uses Claude Code extensively"
+- "Regularly creates skills"
+- "Interested in AI automation"
+
+**Preferences:**
+- "Prefers Chinese communication"
+- "Likes concise, technical responses"
+- "Uses 2-space indentation"
+
+**Goals:**
+- "Learning Rust for systems programming"
+- "Building skill automation tools"
+
+#### Relation Building
+
+**Connect entities through relations (active voice):**
+
+**User-Technology:**
+- User --prefers--> TypeScript
+- User --uses--> pnpm
+- User --learning--> Rust
+
+**User-Project:**
+- User --created--> capy-memory
+- User --working_on--> mcp-manager
+
+**Project-Technology:**
+- capy-memory --uses--> Memory MCP
+- capy-memory --complies_with--> skill-creator
 
 **When to Remember:**
-1. User explicitly states a preference
-2. User corrects Claude's assumptions
-3. Repeated choices indicate patterns
-4. Background information that affects future work
+1. User explicitly states a preference → Create observation
+2. User corrects Claude's assumptions → Update observation
+3. Repeated choices indicate patterns → Create entity + relation
+4. Background information that affects future work → Add to User
+5. New project or significant work → Create Project entity
+6. Technical learning or principles → Create Concept entity
+7. Major discussions (10+ turns) → Create ConversationTopic entity
 
 **When NOT to Remember:**
-1. Temporary tasks or current bugs
-2. One-time operations
-3. Sensitive information (automatically filtered)
-4. Rapidly changing details
+1. Temporary tasks or current bugs → Discard
+2. One-time operations → Discard
+3. Sensitive information (automatically filtered) → Never store
+4. Rapidly changing details (line numbers, paths) → Discard
+5. Exact error messages or specific bugs → Discard
 
 ### Implicit Learning Examples
 
