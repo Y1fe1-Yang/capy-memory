@@ -1,11 +1,121 @@
 ---
 name: capy-memory
-description: Memory management for HappyCapy using Memory MCP. Enables Claude to remember user preferences, habits, and context across conversations. Use when Claude needs persistent memory, when users want preferences remembered, when importing historical conversations, or when managing long-term context. Triggers include explicit requests like "remember this", "what do you know about me", implicit learning opportunities from stated preferences, and first-time memory setup.
+description: Memory management for HappyCapy using Memory MCP. Enables Claude to remember user preferences, habits, and context across conversations. AUTOMATICALLY loads memory at session start. Triggers include automatic session initialization, explicit requests like "remember this"/"what do you know about me", implicit learning from stated preferences/corrections, and first-time memory setup.
 ---
 
 # capy-memory
 
 Persistent memory management using Memory MCP in HappyCapy environment.
+
+## ⚠️ CRITICAL: Automatic Memory Loading
+
+**At the START of EVERY conversation, you MUST:**
+
+1. **Automatically load memory** (no user action required):
+   ```
+   Use ToolSearch to load: "memory"
+   Then call: mcp__memory__read_graph
+   ```
+
+2. **Process loaded memory:**
+   - Identify user preferences
+   - Note technology choices
+   - Remember workflows and habits
+   - Apply throughout the conversation
+
+3. **Silent operation:**
+   - This happens in the background
+   - User doesn't need to say "load my memory"
+   - Memory is immediately available for use
+
+4. **Token cost:**
+   - Reading memory: ~500-2000 tokens (depends on size)
+   - This cost is acceptable for better user experience
+   - One-time cost per session
+
+**This is NOT optional - memory loading is automatic for every conversation.**
+
+## When to Use This Skill
+
+### Automatic (No User Trigger)
+
+**1. Session Start (MANDATORY):**
+- Load memory at the beginning of EVERY conversation
+- Read user preferences, context, and knowledge
+- Apply throughout the conversation
+
+**2. During Conversation (Intelligent Recognition):**
+
+**Technology & Tool Preferences:**
+- "I use pnpm" → Save package manager preference
+- "I prefer TypeScript" → Save language preference
+- "Don't use semicolons" → Save code style preference
+- "Always use tabs, not spaces" → Save indentation preference
+- "I'm on Node.js v20" → Save environment info
+
+**Workflow & Habits:**
+- "I always run tests before committing" → Save workflow
+- "I prefer to write tests first" → Save development approach
+- "I like to review PRs in the morning" → Save work habits
+- "I usually..." / "I generally..." → Save patterns
+
+**Corrections (HIGH PRIORITY):**
+- "No, use pnpm not npm" → Update preference + note correction
+- "Actually, I prefer X" → Override previous info
+- "Don't do that anymore" → Remove old behavior
+- "I changed to..." → Note evolution
+
+**Background & Context:**
+- "I'm a senior frontend engineer" → Save experience level
+- "I work in UTC+8 timezone" → Save timezone
+- "I'm currently learning Rust" → Save learning context
+- "I'm building an e-commerce site" → Save project context
+
+**Repeated Patterns:**
+- User mentions same preference 3+ times → Strengthen memory
+- Consistent tool choice across sessions → Solidify preference
+- Regular workflow appears multiple times → Confirm habit
+
+### Explicit User Requests
+
+**Save to Memory:**
+- "remember this" / "记住这个"
+- "save this" / "保存一下"
+- "keep this in mind" / "记录一下"
+- "next time remember" / "下次记得"
+- "don't forget" / "别忘了"
+- "note that" / "注意"
+- "for future reference" / "以后参考"
+- "I prefer..." / "我喜欢..."
+- "I always..." / "我总是..."
+- "I usually..." / "我通常..."
+- "I like to..." / "我喜欢..."
+- "make a note" / "记一下"
+
+**Query Memory:**
+- "what do you know about me" / "你知道我什么"
+- "what do you remember" / "你记得什么"
+- "show my preferences" / "显示我的偏好"
+- "review my memory" / "查看我的记忆"
+- "what's in my memory" / "记忆里有什么"
+- "what have you learned about me" / "你学到了我什么"
+- "tell me what you know" / "告诉我你知道什么"
+- "do you remember when I..." / "你记得我..."
+
+**Update Memory:**
+- "update: I now use..." / "更新：我现在用..."
+- "correction: I prefer..." / "纠正：我喜欢..."
+- "I changed to..." / "我改成了..."
+- "I switched from X to Y" / "我从 X 换到了 Y"
+- "not anymore, now I..." / "不再...，现在我..."
+
+**Delete from Memory:**
+- "forget that" / "忘掉这个"
+- "remove X from memory" / "从记忆中删除 X"
+- "that's no longer true" / "这个不对了"
+- "I changed my mind about" / "我改主意了"
+- "delete memory about" / "删除关于...的记忆"
+- "don't remember that anymore" / "别再记这个了"
 
 ## Installation Workflow
 
@@ -60,42 +170,10 @@ When capy-memory is invoked for the first time:
 
 After initial installation:
 - Memory MCP automatically available
+- Memory auto-loads at session start
 - No installation prompts
 - Proactive learning enabled
 - User can explicitly request memory operations
-- **Silent sync enabled** - Automatically consolidates scattered memory files in background
-
-### Silent Sync Mechanism
-
-**Purpose:** Automatically sync memory data from npx cache or other locations to the configured global path without disrupting user experience.
-
-**When to run:**
-- After capy-memory skill loads for the first time in a session
-- Silently in background, non-blocking
-- Only if scattered memory files are detected
-
-**Workflow:**
-1. Quick check: Run `scripts/check_memory_status.sh` silently
-2. If other memory files found:
-   - Run `scripts/migrate_memory_data.py` in background
-   - Auto-select all files for merge
-   - Apply intelligent deduplication
-   - No user prompts during process
-3. If successful: Show one-time notice (next interaction)
-4. If errors: Silent fail, don't interrupt user
-
-**One-time notice format** (show once after successful sync):
-```
-💡 Memory Sync: Found and consolidated scattered memory data
-   Location: /home/node/.claude/memory/global.jsonl
-   This is automatic and won't happen again.
-```
-
-**Implementation:**
-- Use non-blocking background execution
-- Silent operation (no output unless errors)
-- Graceful degradation if sync fails
-- Mark as completed to avoid repeats
 
 ## Memory Operations
 
@@ -130,32 +208,52 @@ Claude automatically identifies when to remember information:
 3. Sensitive information (automatically filtered)
 4. Rapidly changing details
 
-### Explicit Memory Commands
+### Implicit Learning Examples
 
-**Adding to memory:**
+**Example 1: Technology Preference**
 ```
-"Remember that I prefer X"
-"Don't forget I use Y"
-"Note that I work in Z timezone"
-```
-
-**Querying memory:**
-```
-"What do you remember about me?"
-"Show memory about TypeScript"
-"What are my preferences?"
+User: "Use pnpm instead of npm"
+→ Action: Save observation "Prefers pnpm over npm for package management"
+→ Confirmation: "✓ Noted: I'll use pnpm for your projects"
 ```
 
-**Updating memory:**
+**Example 2: Workflow Habit**
 ```
-"Update: I now use X instead of Y"
-"Correction: I prefer A not B"
+User: "Always run tests before committing"
+→ Action: Save observation "Workflow: Always runs tests before git commits"
+→ Confirmation: "✓ Remembered: I'll remind you to run tests before commits"
 ```
 
-**Removing from memory:**
+**Example 3: Code Style**
 ```
-"Forget about my old preference for X"
-"Delete memory about Y"
+User: "I use 2 spaces, not 4"
+→ Action: Save observation "Code style: 2-space indentation"
+→ Confirmation: "✓ Got it: Using 2-space indentation"
+```
+
+**Example 4: Project Context**
+```
+User: "I'm building an e-commerce site with Next.js"
+→ Action: Save observations:
+  - "Current project: e-commerce website"
+  - "Tech stack: Next.js"
+→ Confirmation: "✓ Context saved for your e-commerce project"
+```
+
+**Example 5: Correction**
+```
+User: "No, I don't use Redux anymore, I use Zustand now"
+→ Action:
+  - Update/remove "Uses Redux for state management"
+  - Add "Switched from Redux to Zustand for state management"
+→ Confirmation: "✓ Updated: Using Zustand instead of Redux"
+```
+
+**Example 6: Repeated Pattern**
+```
+User says "use TypeScript" in 3 different sessions
+→ Action: Strengthen observation "Strong preference for TypeScript"
+→ Internal note: High confidence on this preference
 ```
 
 ### Memory MCP Tools Usage
@@ -220,7 +318,7 @@ Use Memory MCP's native flat structure:
 
    ```
    ⚠️  Estimated token usage: ~850K tokens (~$2.50)
-   
+
    Proceed with import?
    [Yes] [Cancel]
    ```
@@ -245,16 +343,16 @@ Use Memory MCP's native flat structure:
 
    ```
    📝 Extracted 31 observations from 89 sessions
-   
+
    Preview (first 5):
    1. Prefers TypeScript over JavaScript
    2. Uses pnpm as package manager
    3. Heavy document user (pptx 11x, pdf 14x)
    4. Interested in AI generation
    5. Senior frontend engineer
-   
+
    ... and 26 more
-   
+
    [View all] [Save all] [Select] [Cancel]
    ```
 
