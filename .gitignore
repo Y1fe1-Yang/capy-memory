@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Test files
+test_*.py
+*.test
+.pytest_cache/
+
+# Skill package
+*.skill
+
+# Editor
+.vscode/
+.idea/
+*.sublime-*
+
+# Local config
+local_config.json
+config.local.json
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
