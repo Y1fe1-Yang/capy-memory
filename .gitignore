@@ -23,7 +23,6 @@ test_*.py
 .vscode/
 .idea/
 *.sublime-*
-
 # Local config
 local_config.json
 config.local.json
